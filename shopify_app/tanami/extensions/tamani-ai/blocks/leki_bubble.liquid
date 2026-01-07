@@ -1,0 +1,37 @@
+{% schema %}
+  {
+    "name": "Leki AI Chat",
+    "target": "body",
+    "settings": [
+      { "type": "color", "id": "colour", "label": "Bubble Color", "default": "#000000" }
+    ]
+  }
+{% endschema %}
+
+<style>
+  .leki-chat-bubble {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 65px;
+    height: 65px;
+    background-color: {{ block.settings.colour }};
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    z-index: 2147483647; /* Ensure it's on top of everything */
+    transition: transform 0.2s ease;
+  }
+  .leki-chat-bubble:hover {
+    transform: scale(1.1);
+  }
+</style>
+
+<div class="leki-chat-bubble" onclick="alert('Leki AI is connected to Supabase!')">
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="white">
+    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+  </svg>
+</div>

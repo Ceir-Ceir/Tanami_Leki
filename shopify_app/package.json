@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@shopify/shopify-app-session-storage-prisma": "^8.0.0"
+  }
+}
