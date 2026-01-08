@@ -12,6 +12,10 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.87.1",
     "cors": "^2.8.5",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "pandas": "^0.0.3",
+    "shopify": "^3.88.1",
+    "streamlit": "^2.51.2",
+    "supabase": "^2.72.1"
   }
 }

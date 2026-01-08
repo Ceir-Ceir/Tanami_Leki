@@ -131,22 +131,66 @@ def get_supabase_client() -> Client:
     return create_client(url, key)
 
 
+
+def fetch_all_rows(
+    client: Client, table: str, select: str = "*", order_col: str = None
+) -> List[Dict]:
+    """Fetch all rows from a table using pagination to avoid API limits."""
+    all_data = []
+    chunk_size = 250
+    offset = 0
+
+    while True:
+        query = client.table(table).select(select)
+        if order_col:
+            query = query.order(order_col, desc=True)
+
+        resp = query.range(offset, offset + chunk_size - 1).execute()
+        chunk = resp.data or []
+        all_data.extend(chunk)
+
+        if len(chunk) < chunk_size:
+            break
+        offset += chunk_size
+
+    return all_data
+
+
 @st.cache_data(ttl=300, show_spinner=True)
 def fetch_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Fetch lead rollups, leads, and events from Supabase into DataFrames."""
     client = get_supabase_client()
 
+    # 1. Fetch Rollup Data (The Top Leads)
+    # We select specific columns to make it faster and prevent timeouts
     rollup_resp = (
         client.table("v_lead_rollup")
-        .select("*")
+        .select("email, lead_score, last_seen, stage, anonymous_id") 
         .order("lead_score", desc=True)
+        .limit(200) 
         .execute()
     )
+
+    # 2. Fetch Base Leads (Wait - do you actually need this? 
+    # v_lead_rollup usually contains the leads. Let's fetch the base table just in case)
     leads_resp = (
         client.table("leads")
-        .select("email,lead_score,stage,first_seen,last_seen,anonymous_id")
+        .select("*")
+        .order("first_seen", desc=True)
         .execute()
     )
+
+    # 2b. Fetch Converted Leads (Explicitly fetch leads with emails to ensure funnel works)
+    # We want to make sure we don't miss anyone who has actually signed up, even if they aren't in the top 200.
+    converted_resp = (
+        client.table("leads")
+        .select("*")
+        .neq("email", "null")
+        .limit(1000)
+        .execute()
+    )
+
+    # 3. Fetch Recent Events
     events_resp = (
         client.table("events")
         .select("anonymous_id,email,event_type,points,metadata,created_at")
@@ -156,14 +200,21 @@ def fetch_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     )
 
     rollup_df = pd.DataFrame(rollup_resp.data or [])
-    leads_df = pd.DataFrame(leads_resp.data or [])
+    
+    # Merge "Recent" and "Converted" leads
+    leads_data = (leads_resp.data or []) + (converted_resp.data or [])
+    leads_df = pd.DataFrame(leads_data)
+    if not leads_df.empty and "anonymous_id" in leads_df.columns:
+        leads_df = leads_df.drop_duplicates(subset="anonymous_id")
     events_df = pd.DataFrame(events_resp.data or [])
 
+    # Formatting dates
     for frame in (rollup_df, leads_df):
-        if not frame.empty and "last_seen" in frame:
-            frame["last_seen"] = pd.to_datetime(frame["last_seen"], errors="coerce")
-        if not frame.empty and "first_seen" in frame:
-            frame["first_seen"] = pd.to_datetime(frame["first_seen"], errors="coerce")
+        if not frame.empty:
+            for col in ["last_seen", "first_seen", "created_at"]:
+                if col in frame.columns:
+                    frame[col] = pd.to_datetime(frame[col], errors="coerce")
+                    
     if not events_df.empty and "created_at" in events_df:
         events_df["created_at"] = pd.to_datetime(events_df["created_at"], errors="coerce")
 
@@ -764,6 +815,57 @@ def render_stage_distribution(leads_df: pd.DataFrame) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
+def render_top_actions(client: Client):
+    st.subheader("Top Actions by Converted Leads")
+
+    try:
+        # Fetch just the JSON column to keep it light
+        resp = client.table("v_lead_profiles").select("top_events").execute()
+    except Exception as e:
+        # Graceful fallback if view/column doesn't exist
+        st.warning(f"Could not load top actions: {e}")
+        return
+
+    data = resp.data or []
+    if not data:
+        st.info("No profile data available to chart.")
+        return
+
+    # Aggregate counts manually from the JSONB {"action": count} dicts
+    event_counts = {}
+    for row in data:
+        events = row.get("top_events")
+        if not events or not isinstance(events, dict):
+            continue
+        for event_name, count in events.items():
+            # Ensure we're adding integers
+            add_val = int(count) if count is not None else 0
+            event_counts[event_name] = event_counts.get(event_name, 0) + add_val
+
+    if not event_counts:
+        st.caption("No aggregated event data found.")
+        return
+
+    # Create DataFrame for Plotly
+    df = pd.DataFrame(list(event_counts.items()), columns=["Action", "Count"])
+    
+    # Sort and take top 20
+    df = df.sort_values("Count", ascending=True).tail(20)
+
+    fig = px.bar(
+        df,
+        x="Count",
+        y="Action",
+        orientation="h",
+        text="Count",
+        title="Most Frequent Actions (Converted Users)",
+        color_discrete_sequence=[PRIMARY_COLOR],
+    )
+    fig.update_traces(textposition="outside")
+    fig.update_layout(height=600, margin=dict(l=20, r=20, t=50, b=20))
+    st.plotly_chart(fig, use_container_width=True)
+
+
 def render_event_trends(events_df: pd.DataFrame) -> None:
     if events_df.empty:
         st.info("No event activity available.")
@@ -989,14 +1091,8 @@ def main() -> None:
         st.subheader("Lead Stage Distribution")
         render_stage_distribution(leads_df)
 
-        converted_events, match_note = _filter_events_for_converted_leads(leads_df, events_df)
-        if converted_events.empty:
-            converted_events = fetch_converted_events_live(leads_df)
-            if not converted_events.empty:
-                match_note = "Fetched events for converted leads (live query)"
-        st.subheader("Converted Lead Insights")
-        st.caption(f"Filtered using: {match_note}")
-        render_converted_lead_funnel(converted_events)
+        # Top Actions Chart (replacing funnel)
+        render_top_actions(get_supabase_client())
 
         st.subheader("Most Recent Live Actions")
         render_recent_actions(events_df)
