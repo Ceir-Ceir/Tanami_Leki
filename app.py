@@ -161,15 +161,10 @@ def fetch_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Fetch lead rollups, leads, and events from Supabase into DataFrames."""
     client = get_supabase_client()
 
-    # 1. Fetch Rollup Data (The Top Leads)
-    # We select specific columns to make it faster and prevent timeouts
-    rollup_resp = (
-        client.table("v_lead_rollup")
-        .select("email, lead_score, last_seen, stage, anonymous_id") 
-        .order("lead_score", desc=True)
-        .limit(200) 
-        .execute()
-    )
+    # 1. Fetch Rollup Data (All Leads)
+    # We use fetch_all_rows to get the complete list for SQL/MQL views.
+    # We do NOT order by lead_score in the DB to prevent timeouts.
+    rollup_data = fetch_all_rows(client, "v_lead_rollup", "*")
 
     # 2. Fetch Base Leads (Wait - do you actually need this? 
     # v_lead_rollup usually contains the leads. Let's fetch the base table just in case)
@@ -199,7 +194,9 @@ def fetch_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         .execute()
     )
 
-    rollup_df = pd.DataFrame(rollup_resp.data or [])
+    rollup_df = pd.DataFrame(rollup_data)
+    if not rollup_df.empty and "lead_score" in rollup_df:
+        rollup_df = rollup_df.sort_values("lead_score", ascending=False)
     
     # Merge "Recent" and "Converted" leads
     leads_data = (leads_resp.data or []) + (converted_resp.data or [])

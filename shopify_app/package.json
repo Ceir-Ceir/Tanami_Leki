@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "@shopify/shopify-app-session-storage-prisma": "^8.0.0"
+    "@shopify/cli": "^3.88.1",
+    "@shopify/shopify-app-session-storage-prisma": "^8.0.0",
+    "@shopify/theme": "^3.58.2"
   }
 }

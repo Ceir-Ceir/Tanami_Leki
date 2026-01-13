@@ -3,35 +3,347 @@
     "name": "Leki AI Chat",
     "target": "body",
     "settings": [
-      { "type": "color", "id": "colour", "label": "Bubble Color", "default": "#000000" }
+      { "type": "color", "id": "bubble_color", "label": "Bubble Color", "default": "#000000" },
+      { "type": "color", "id": "text_color", "label": "Icon Color", "default": "#FFFFFF" }
     ]
   }
 {% endschema %}
 
+<!-- Font -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
 <style>
-  .leki-chat-bubble {
+  :root {
+    --leki-black: #000000;
+    --leki-dark-gray: #1A1A1A;
+    --leki-white: #FFFFFF;
+    --leki-text-muted: #888888;
+    --leki-font: 'Inter', sans-serif;
+  }
+
+  /* Chat Bubble (Launcher) */
+  .leki-launcher {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    width: 65px;
-    height: 65px;
-    background-color: {{ block.settings.colour }};
+    width: 60px;
+    height: 60px;
+    background-color: var(--leki-black);
+    border: 1px solid var(--leki-white); /* High contrast border */
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    z-index: 2147483647; /* Ensure it's on top of everything */
-    transition: transform 0.2s ease;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    z-index: 2147483647;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
   }
-  .leki-chat-bubble:hover {
-    transform: scale(1.1);
+  .leki-launcher:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 25px rgba(255,255,255,0.2); /* Glow effect */
+  }
+  .leki-launcher svg {
+    width: 28px;
+    height: 28px;
+    fill: {{ block.settings.text_color }};
+  }
+
+  /* Chat Window */
+  .leki-window {
+    position: fixed;
+    bottom: 90px;
+    right: 20px;
+    width: 360px;
+    height: 600px;
+    max-height: 80vh;
+    background-color: var(--leki-black);
+    border: 1px solid var(--leki-dark-gray);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.8);
+    display: none; /* Hidden by default */
+    flex-direction: column;
+    z-index: 2147483647;
+    font-family: var(--leki-font);
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  .leki-window.open {
+    display: flex; /* Changed from block to flex for layout */
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Header */
+  .leki-header {
+    padding: 20px;
+    background-color: var(--leki-black);
+    border-bottom: 1px solid var(--leki-dark-gray);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .leki-title {
+    color: var(--leki-white);
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+  }
+  .leki-close {
+    background: none;
+    border: none;
+    color: var(--leki-text-muted);
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .leki-close:hover {
+    color: var(--leki-white);
+  }
+
+  /* Messages Area */
+  .leki-messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background-color: var(--leki-black);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  /* Scrollbar styling */
+  .leki-messages::-webkit-scrollbar { width: 6px; }
+  .leki-messages::-webkit-scrollbar-thumb { background-color: var(--leki-dark-gray); border-radius: 3px; }
+  .leki-messages::-webkit-scrollbar-track { background: var(--leki-black); }
+
+  /* Message Bubbles */
+  .leki-msg {
+    max-width: 80%;
+    padding: 12px 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    position: relative;
+    animation: fadeIn 0.3s ease;
+  }
+  
+  /* Bot: Solid White, Black Text, Rounded */
+  .leki-msg-bot {
+    align-self: flex-start;
+    background-color: var(--leki-white);
+    color: var(--leki-black);
+    border-radius: 8px 8px 8px 0;
+    font-weight: 500;
+  }
+  
+  /* User: Transparent, White Border, White Text, Sharp */
+  .leki-msg-user {
+    align-self: flex-end;
+    background-color: transparent;
+    color: var(--leki-white);
+    border: 1px solid var(--leki-white);
+    border-radius: 0; /* Sharp corners */
+    text-align: right;
+  }
+
+  /* Input Area */
+  .leki-input-area {
+    padding: 20px;
+    background-color: var(--leki-black);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-top: 1px solid var(--leki-dark-gray);
+  }
+  .leki-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--leki-white);
+    color: var(--leki-white);
+    padding: 8px 0;
+    font-family: var(--leki-font);
+    font-size: 14px;
+    outline: none;
+  }
+  .leki-input::placeholder {
+    color: var(--leki-text-muted);
+  }
+  .leki-send-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--leki-white);
+    padding: 8px;
+    transition: transform 0.2s ease, text-shadow 0.2s ease;
+  }
+  .leki-send-btn:hover {
+    transform: translateX(2px);
+    text-shadow: 0 0 8px rgba(255,255,255,0.8);
+  }
+
+  /* Typing Indicator */
+  .leki-typing {
+    display: flex;
+    gap: 4px;
+    padding: 12px 16px;
+    background-color: var(--leki-white);
+    border-radius: 8px 8px 8px 0;
+    width: fit-content;
+    align-self: flex-start;
+    display: none;
+  }
+  .leki-dot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--leki-black);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out both;
+  }
+  .leki-dot:nth-child(1) { animation-delay: -0.32s; }
+  .leki-dot:nth-child(2) { animation-delay: -0.16s; }
+
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 </style>
 
-<div class="leki-chat-bubble" onclick="alert('Leki AI is connected to Supabase!')">
-  <svg width="30" height="30" viewBox="0 0 24 24" fill="white">
+<!-- Launcher -->
+<div class="leki-launcher" id="lekiLauncher">
+  <svg viewBox="0 0 24 24">
     <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
   </svg>
 </div>
+
+<!-- Chat Window -->
+<div class="leki-window" id="lekiWindow">
+  <div class="leki-header">
+    <div class="leki-title">Leki Assistant</div>
+    <button class="leki-close" id="lekiClose">&times;</button>
+  </div>
+  
+  <div class="leki-messages" id="lekiMessages">
+    <!-- Initial Greeting -->
+    <div class="leki-msg leki-msg-bot">
+      Hello! I'm Leki. How can I help you today?
+    </div>
+    
+    <!-- Typing Indicator -->
+    <div class="leki-typing" id="lekiTyping">
+      <div class="leki-dot"></div>
+      <div class="leki-dot"></div>
+      <div class="leki-dot"></div>
+    </div>
+  </div>
+
+  <div class="leki-input-area">
+    <input type="text" class="leki-input" id="lekiInput" placeholder="Ask me anything..." autocomplete="off">
+    <button class="leki-send-btn" id="lekiSend">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const launcher = document.getElementById('lekiLauncher');
+    const windowEl = document.getElementById('lekiWindow');
+    const closeBtn = document.getElementById('lekiClose');
+    const sendBtn = document.getElementById('lekiSend');
+    const inputEl = document.getElementById('lekiInput');
+    const messagesEl = document.getElementById('lekiMessages');
+    const typingEl = document.getElementById('lekiTyping');
+
+    let isOpen = false;
+
+    // Toggle Window
+    function toggleChat() {
+      isOpen = !isOpen;
+      if (isOpen) {
+        windowEl.classList.add('open');
+        inputEl.focus();
+      } else {
+        windowEl.classList.remove('open');
+      }
+    }
+
+    launcher.addEventListener('click', toggleChat);
+    closeBtn.addEventListener('click', toggleChat);
+
+    // Append Message
+    function appendMessage(text, sender) {
+      const div = document.createElement('div');
+      div.classList.add('leki-msg');
+      div.classList.add(sender === 'user' ? 'leki-msg-user' : 'leki-msg-bot');
+      div.textContent = text;
+      
+      // Insert before typing indicator
+      messagesEl.insertBefore(div, typingEl);
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // Show/Hide Typing
+    function setTyping(isTyping) {
+      typingEl.style.display = isTyping ? 'flex' : 'none';
+      scrollToBottom();
+    }
+
+    // Send Message
+    async function sendMessage() {
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      // Clear input
+      inputEl.value = '';
+
+      // Add User Message
+      appendMessage(text, 'user');
+
+      // AI Logic
+      setTyping(true);
+
+      try {
+        const response = await fetch('/apps/leki/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+        
+        const data = await response.json();
+        
+        setTyping(false);
+        
+        if (data.error) {
+           appendMessage("Something went wrong. Please try again.", 'bot');
+        } else {
+           appendMessage(data.answer, 'bot');
+        }
+
+      } catch (err) {
+        console.error(err);
+        setTyping(false);
+        appendMessage("Network error. Please check your connection.", 'bot');
+      }
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    inputEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+  })();
+</script>

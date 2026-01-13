@@ -2,3 +2,7 @@ streamlit
 pandas
 supabase
 plotly
+python-dotenv
+flask
+groq
+sentence-transformers

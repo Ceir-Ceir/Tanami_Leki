@@ -2,7 +2,7 @@
 
 client_id = "fe0328716b9e7bb5bcaa87b76e18be14"
 name = "Tanami"
-application_url = "https://tamani.ai"
+application_url = "https://build-states-suggesting-paragraph.trycloudflare.com"
 embedded = true
 
 [build]
@@ -27,4 +27,11 @@ optional_scopes = [ ]
 use_legacy_install_flow = false
 
 [auth]
-redirect_urls = [ ]
+redirect_urls = [
+  "https://build-states-suggesting-paragraph.trycloudflare.com/auth/callback"
+]
+
+[app_proxy]
+url = "https://build-states-suggesting-paragraph.trycloudflare.com/app/proxy"
+subpath = "leki"
+prefix = "apps"
