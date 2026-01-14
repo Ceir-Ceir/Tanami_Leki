@@ -6,3 +6,4 @@ python-dotenv
 flask
 groq
 sentence-transformers
+gunicorn
