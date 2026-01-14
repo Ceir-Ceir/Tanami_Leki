@@ -3,7 +3,7 @@ import logging
 from flask import Flask, request, jsonify
 from supabase import create_client, Client
 from groq import Groq
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 from dotenv import load_dotenv
 
 # Load env from .env if present (mostly for local dev)
@@ -19,32 +19,36 @@ logger = logging.getLogger(__name__)
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-if not all([SUPABASE_URL, SUPABASE_KEY, GROQ_API_KEY]):
-    logger.warning("Missing one or more required environment variables: SUPABASE_URL, SUPABASE_KEY, GROQ_API_KEY")
+if not all([SUPABASE_URL, SUPABASE_KEY, GROQ_API_KEY, OPENAI_API_KEY]):
+    logger.warning("Missing one or more required environment variables: SUPABASE_URL, SUPABASE_KEY, GROQ_API_KEY, OPENAI_API_KEY")
 
 # Initialize Clients
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
     groq_client = Groq(api_key=GROQ_API_KEY)
-    # Using a small, fast model for local embeddings (384 dimensions)
-    # Note: If your DB expects 1536 dims (OpenAI), this will fail unless you update the 'match_kb_chunks' function.
-    embed_model = SentenceTransformer('all-MiniLM-L6-v2') 
+    openai_client = OpenAI(api_key=OPENAI_API_KEY)
+    
     logger.info("RAG Service Initialized successfully.")
 except Exception as e:
     logger.error(f"Failed to initialize clients: {e}")
 
 def get_context(query_text: str):
     """
-    1. Vectorize query.
+    1. Vectorize query using OpenAI (1536 dims).
     2. Search Supabase kb_chunks.
     """
     try:
         # Generate embedding
-        vector = embed_model.encode(query_text).tolist()
+        embed_res = openai_client.embeddings.create(
+            input=query_text,
+            model="text-embedding-3-small"
+        )
+        vector = embed_res.data[0].embedding
         
         # Query Supabase
-        # Ensure your 'match_kb_chunks' RPC function matches the dimension of this model (384)
+        # NOTE: Make sure match_kb_chunks RPC is set for 1536 dimensions!
         response = supabase.rpc("match_kb_chunks", {
             "query_embedding": vector,
             "match_threshold": 0.5,
@@ -68,7 +72,6 @@ def generate_answer(query: str, context_chunks: list):
             "If the answer isn't there, say you don't know."
         )
 
-        # FIXED: temperature=0.5 (was temperature: 0.5)
         chat_completion = groq_client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -164,14 +167,15 @@ def add_kb_chunk():
         return jsonify({"error": "Content is required"}), 400
         
     try:
-        # 1. Embed content
-        embedding = embed_model.encode(content).tolist()
+        # 1. Embed content via OpenAI
+        embed_res = openai_client.embeddings.create(
+            input=content,
+            model="text-embedding-3-small"
+        )
+        embedding = embed_res.data[0].embedding
         
         # 2. Insert into kb_chunks
-        # We need a document_id. For simplicity, we can create a 'General' doc if not exists, 
-        # or just insert if your schema allows null doc_id (schema says NOT NULL).
-        # Let's find or create a default "Dashboard Uploads" document.
-        
+        # Find or create a default "Dashboard Uploads" document.
         doc_resp = supabase.table("kb_documents").select("id").eq("title", "Dashboard Uploads").execute()
         if doc_resp.data:
             doc_id = doc_resp.data[0]['id']

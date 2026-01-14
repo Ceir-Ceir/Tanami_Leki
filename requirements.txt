@@ -5,5 +5,5 @@ plotly
 python-dotenv
 flask
 groq
-sentence-transformers
+openai
 gunicorn
