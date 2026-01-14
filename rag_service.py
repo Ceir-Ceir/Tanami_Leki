@@ -68,13 +68,14 @@ def generate_answer(query: str, context_chunks: list):
             "If the answer isn't there, say you don't know."
         )
 
+        # FIXED: temperature=0.5 (was temperature: 0.5)
         chat_completion = groq_client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Context:\n{context_str}\n\nQuestion: {query}"}
             ],
             model="llama-3.3-70b-versatile",
-            temperature: 0.5,
+            temperature=0.5,
         )
         
         return chat_completion.choices[0].message.content
@@ -179,51 +180,12 @@ def add_kb_chunk():
             new_doc = supabase.table("kb_documents").insert({"title": "Dashboard Uploads", "source_type": "admin"}).execute()
             doc_id = new_doc.data[0]['id']
             
-        # Insert Chunk
         chunk_data = {
             "document_id": doc_id,
             "content": content,
             "chunk_index": 0, # Simple index
-            # "embedding": embedding # Supabase-py might struggle with vector types directly depending on setup.
-             # Ideally we use an RPC or specific formatting. 
-             # For now, let's assume the trigger handles embedding or we assume pgvector support in client.
-             # Actually, supabase-py doesn't always support vector inserts easily.
-             # Let's try raw inserts or RPC if standard insert fails.
+            "embedding": embedding
         }
-        
-        # Attempt standard insert (if your table listens for changes or handle vector string format)
-        # Note: pgvector expects a string like '[1,2,3]' usually.
-        # But 'embedding' col is Unsupported("vector") in Prisma schema, likely vector(384) in DB.
-        
-        # We'll try to insert using RPC to be safe if direct insert fails on vector type.
-        # But let's try direct insert first, stringifying if needed.
-        # Check schema line 33: `embedding Unsupported("vector")?`
-        
-        # NOTE: Inserting vectors via standard Supabase API often requires exact format.
-        # Let's return success and assume the user handles vectors via existing ingest pipeline 
-        # or we implement an RPC `insert_kb_chunk` to handle the casting.
-        
-        # For THIS implementation, I'll use a placeholder RPC call if you have one, 
-        # or just try to insert without embedding if there's an auto-embedding trigger (common in Supabase).
-        # Re-reading app.py... it uses `_insert_chunks_for_document` (app.py:539).
-        # It calls `supabase_admin.table("kb_chunks").insert(rows).execute()`.
-        # Wait, app.py sets `embedding: None`? (Line 551 in previous view).
-        # Ah! `app.py` sets embedding to None?
-        # Let's check app.py `_insert_chunks_for_document` (Lines 668-685 in previous view).
-        # Yes: `"embedding": None`. 
-        # Does that mean there is a database trigger that generates embeddings? 
-        # OR does the python script generate them later?
-        # `app.py` has `render_knowledge_base` -> `... ingest chunks...`
-        # `create_kb_document` ... `chunk_text`.
-        # It seems `app.py` might NOT be generating embeddings on insert in that specific function viewed?
-        # Or maybe I missed where embeddings are generated.
-        # Logic in `rag_service.py` has `embed_model`. I SHOULD generate it.
-        # If I can't easily insert vector via API, I'll rely on the existing pattern:
-        # Insert with NULL embedding, and maybe a background job or trigger handles it?
-        # OR I should assume I CAN insert it.
-        
-        # Let's try inserting with the list.
-        chunk_data["embedding"] = embedding 
         
         supabase.table("kb_chunks").insert(chunk_data).execute()
         
