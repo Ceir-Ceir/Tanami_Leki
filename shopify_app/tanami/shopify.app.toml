@@ -5,6 +5,9 @@ name = "Tanami"
 application_url = "https://build-states-suggesting-paragraph.trycloudflare.com"
 embedded = true
 
+[build]
+automatically_update_urls_on_dev = true
+
 [webhooks]
 api_version = "2026-01"
 
@@ -19,10 +22,7 @@ redirect_urls = [
   "https://build-states-suggesting-paragraph.trycloudflare.com/auth/callback"
 ]
 
-[build]
-automatically_update_urls_on_dev = true
-
 [app_proxy]
 url = "https://build-states-suggesting-paragraph.trycloudflare.com"
 subpath = "leki"
-prefix = "/apps/"
+prefix = "apps"

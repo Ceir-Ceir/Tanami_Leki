@@ -4,6 +4,7 @@ supabase
 plotly
 python-dotenv
 flask
+flask-cors
 groq
 openai
 gunicorn
