@@ -1,43 +1,51 @@
-import { pipeline } from "@xenova/transformers";
+import OpenAI from "openai";
 import Groq from "groq-sdk";
 import prisma from "../db.server";
 
-// Initialize Clients
-// Ensure OPENAI_API_KEY (for embeddings) and GROQ_API_KEY (for chat) are in .env
+// Initialize OpenAI for embeddings
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Initialize Groq for chat completions
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY,
 });
 
-// Singleton for the extractor to avoid reloading model on every request
-let extractor: any = null;
-
+/**
+ * Generate embeddings using OpenAI's text-embedding-3-small model.
+ * Returns a 1536-dimensional vector.
+ */
 export async function generateEmbedding(text: string): Promise<number[]> {
-    if (!extractor) {
-        // specific model optimized for sentence embeddings
-        extractor = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
-    }
-
-    const output = await extractor(text, { pooling: "mean", normalize: true });
-    return Array.from(output.data);
+    const response = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: text,
+    });
+    return response.data[0].embedding;
 }
 
+/**
+ * Search the knowledge base using vector similarity.
+ */
 export async function searchKnowledgeBase(embedding: number[]) {
-    // Query Supabase via Prisma raw query for vector similarity
-    // Note: We use queryRaw because Prisma doesn't natively support pgvector syntax strongly yet
     const vectorStr = `[${embedding.join(",")}]`;
 
-    // Adjust threshold (0.5) and limit (5) as needed
+    // Query using pgvector cosine distance
     const chunks = await prisma.$queryRaw`
-    SELECT id, content, metadata, 1 - (embedding <=> ${vectorStr}::vector) as similarity
-    FROM kb_chunks
-    WHERE 1 - (embedding <=> ${vectorStr}::vector) > 0.5
-    ORDER BY similarity DESC
-    LIMIT 5
-  `;
+        SELECT id, content, metadata, 1 - (embedding <=> ${vectorStr}::vector) as similarity
+        FROM kb_chunks
+        WHERE embedding IS NOT NULL
+          AND 1 - (embedding <=> ${vectorStr}::vector) > 0.3
+        ORDER BY similarity DESC
+        LIMIT 5
+    `;
 
     return chunks as Array<{ content: string; similarity: number }>;
 }
 
+/**
+ * Generate an answer using Groq and the provided context.
+ */
 export async function generateAnswer(query: string, contextChunks: string[]) {
     const context = contextChunks.join("\n\n---\n\n");
 
@@ -62,12 +70,18 @@ ${context}
     return completion.choices[0]?.message?.content || "";
 }
 
+/**
+ * Main RAG pipeline: embed query, search KB, generate answer.
+ */
 export async function processChat(query: string) {
     try {
+        // 1. Generate embedding for the query
         const embedding = await generateEmbedding(query);
+
+        // 2. Search knowledge base
         const results = await searchKnowledgeBase(embedding);
 
-        // If no good matches
+        // 3. If no good matches, return fallback
         if (results.length === 0) {
             return {
                 answer: "I'm sorry, I couldn't find any information about that in my knowledge base. Please try asking differently or contact support.",
@@ -75,18 +89,19 @@ export async function processChat(query: string) {
             };
         }
 
+        // 4. Generate answer using the context
         const contextChunks = results.map(r => r.content);
         const answer = await generateAnswer(query, contextChunks);
 
         return {
             answer,
-            sources: results // Optional: return sources to UI
+            sources: results
         };
     } catch (error) {
         console.error("RAG Error:", error);
         return {
             answer: "I'm having trouble connecting to my brain right now. Please try again later.",
             sources: []
-        }
+        };
     }
 }

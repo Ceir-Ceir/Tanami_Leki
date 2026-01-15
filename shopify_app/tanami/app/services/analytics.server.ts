@@ -160,6 +160,7 @@ export interface LeadJourneyData {
     paidTrafficCount: number;
     totalSessions: number;
     paidPercentage: number;
+    topReferrer: string;
 }
 
 export async function getLeadJourneyData(): Promise<LeadJourneyData> {
@@ -229,13 +230,17 @@ export async function getLeadJourneyData(): Promise<LeadJourneyData> {
             ? Math.round((paidTrafficCount / totalSessions) * 100)
             : 0;
 
+        // Get top referrer (first in sorted distribution)
+        const topReferrer = referrerDistribution.length > 0 ? referrerDistribution[0].source : "(none)";
+
         return {
             avgSessionMinutes,
             avgSessionSeconds,
             referrerDistribution,
             paidTrafficCount,
             totalSessions,
-            paidPercentage
+            paidPercentage,
+            topReferrer
         };
     } catch (error) {
         console.error("Failed to fetch lead journey data:", error);
@@ -245,7 +250,8 @@ export async function getLeadJourneyData(): Promise<LeadJourneyData> {
             referrerDistribution: [],
             paidTrafficCount: 0,
             totalSessions: 0,
-            paidPercentage: 0
+            paidPercentage: 0,
+            topReferrer: "(none)"
         };
     }
 }

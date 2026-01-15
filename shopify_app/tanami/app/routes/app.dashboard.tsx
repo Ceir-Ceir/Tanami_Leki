@@ -295,14 +295,20 @@ export default function Dashboard() {
                     <div style={{ display: 'flex', gap: '2rem', marginBottom: '1rem' }}>
                         <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '0.875rem', opacity: 0.8, marginBottom: '0.25rem' }}>Avg Session</div>
-                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: GREEN_ACCENT }}>
+                            <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: GREEN_ACCENT }}>
                                 {leadJourneyData?.avgSessionMinutes || 0} min
                             </div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '0.875rem', opacity: 0.8, marginBottom: '0.25rem' }}>Paid Traffic</div>
-                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#f59e0b' }}>
+                            <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#f59e0b' }}>
                                 {leadJourneyData?.paidPercentage || 0}%
+                            </div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.875rem', opacity: 0.8, marginBottom: '0.25rem' }}>Top Referrer</div>
+                            <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#60a5fa' }}>
+                                {leadJourneyData?.topReferrer || "(none)"}
                             </div>
                         </div>
                     </div>

@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useActionData, Form, useNavigation } from "react-router";
-import { useState } from "react";
+import { useRef, useEffect } from "react";
 import {
     listKBDocuments,
     ingestKnowledgeText,
@@ -81,6 +81,14 @@ export default function KnowledgeBasePage() {
     const actionData = useActionData<typeof action>();
     const navigation = useNavigation();
     const isLoading = navigation.state === "submitting";
+    const formRef = useRef<HTMLFormElement>(null);
+
+    // Clear form after successful submission
+    useEffect(() => {
+        if (actionData?.success && actionData.success.includes("Created document")) {
+            formRef.current?.reset();
+        }
+    }, [actionData]);
 
     // Styling constants matching dashboard
     const GREEN_ACCENT = "#22c55e";
@@ -316,7 +324,7 @@ export default function KnowledgeBasePage() {
                         <h2>Add New Document</h2>
                         <p>Paste knowledge text to be chunked and stored for RAG retrieval.</p>
 
-                        <Form method="post">
+                        <Form method="post" ref={formRef}>
                             <input type="hidden" name="intent" value="create" />
 
                             <div className="kb-form-row">

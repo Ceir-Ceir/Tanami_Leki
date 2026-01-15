@@ -21,3 +21,8 @@ redirect_urls = [
 
 [build]
 automatically_update_urls_on_dev = true
+
+[app_proxy]
+url = "https://build-states-suggesting-paragraph.trycloudflare.com"
+subpath = "leki"
+prefix = "/apps/"
