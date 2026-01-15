@@ -51,11 +51,11 @@ def get_context(query_text: str):
         vector = embed_res.data[0].embedding
         
         # Query Supabase
-        # NOTE: Make sure match_kb_chunks RPC is set for 1536 dimensions!
+        # Uses the actual function signature: filter_source_types, match_count, query_embedding
         response = supabase.rpc("match_kb_chunks", {
             "query_embedding": vector,
-            "match_threshold": 0.5,
-            "match_count": 5
+            "match_count": 5,
+            "filter_source_types": None  # No filtering, return all source types
         }).execute()
         
         return response.data or []
