@@ -38,21 +38,77 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 15px rgba(255,255,255,0.15);
     z-index: 2147483647;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
     padding: 0;
+    animation: launcherBounce 2s ease-in-out infinite;
   }
   .leki-launcher:hover {
     transform: scale(1.08);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 20px rgba(255,255,255,0.1);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 25px rgba(255,255,255,0.25);
+    animation: none;
+  }
+  .leki-launcher.chat-open {
+    animation: none;
   }
   .leki-launcher img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     border-radius: 50%;
+  }
+
+  /* Teaser Chat Bubble */
+  .leki-teaser {
+    position: fixed;
+    bottom: 95px;
+    right: 24px;
+    background-color: var(--leki-white);
+    color: var(--leki-black);
+    padding: 14px 18px;
+    border-radius: 18px 18px 4px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    max-width: 220px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    z-index: 2147483646;
+    cursor: pointer;
+    animation: teaserFadeIn 0.5s ease 1s forwards, teaserPulse 3s ease-in-out 1.5s infinite;
+    opacity: 0;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .leki-teaser:hover {
+    transform: scale(1.03);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  }
+  .leki-teaser.hidden {
+    display: none;
+  }
+  .leki-teaser::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    right: 20px;
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 10px solid var(--leki-white);
+  }
+
+  @keyframes launcherBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  @keyframes teaserFadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes teaserPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
   }
 
   /* Chat Window Container */
@@ -327,6 +383,11 @@
   }
 </style>
 
+<!-- Teaser Chat Bubble -->
+<div class="leki-teaser" id="lekiTeaser">
+  👋 Welcome to Leki! Are you a first time rider?
+</div>
+
 <!-- Launcher Button with Logo -->
 <div class="leki-launcher" id="lekiLauncher">
   <img src="{{ 'lekilogo.jpg' | asset_url }}" alt="Leki AI Chat">
@@ -381,6 +442,7 @@
     const inputEl = document.getElementById('lekiInput');
     const messagesEl = document.getElementById('lekiMessages');
     const typingEl = document.getElementById('lekiTyping');
+    const teaserEl = document.getElementById('lekiTeaser');
 
     let isOpen = false;
 
@@ -421,14 +483,18 @@
       isOpen = !isOpen;
       if (isOpen) {
         windowEl.classList.add('open');
+        launcher.classList.add('chat-open');
+        teaserEl.classList.add('hidden');
         setTimeout(() => inputEl.focus(), 300);
       } else {
         windowEl.classList.remove('open');
+        launcher.classList.remove('chat-open');
       }
     }
 
     launcher.addEventListener('click', toggleChat);
     closeBtn.addEventListener('click', toggleChat);
+    teaserEl.addEventListener('click', toggleChat);
 
     // Append Message
     function appendMessage(text, sender) {
