@@ -2,27 +2,28 @@
 
 client_id = "fe0328716b9e7bb5bcaa87b76e18be14"
 name = "Tanami"
-application_url = "https://build-states-suggesting-paragraph.trycloudflare.com"
+application_url = "https://tanami-leki-1gnn.onrender.com"
 embedded = true
 
 [build]
-automatically_update_urls_on_dev = true
+automatically_update_urls_on_dev = false
 
 [webhooks]
 api_version = "2026-01"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = ""
+scopes = "read_products,read_customers,write_customers,write_app_proxy"
 optional_scopes = [ ]
 use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
-  "https://build-states-suggesting-paragraph.trycloudflare.com/auth/callback"
+  "https://tanami-leki-1gnn.onrender.com/auth/callback",
+  "https://tanami-leki-1gnn.onrender.com/auth/shopify/callback"
 ]
 
 [app_proxy]
-url = "https://build-states-suggesting-paragraph.trycloudflare.com"
+url = "https://tanami-leki-1gnn.onrender.com"
 subpath = "leki"
 prefix = "apps"
