@@ -89,6 +89,19 @@ def generate_answer(query: str, context_chunks: list):
         logger.error(f"Error generating answer: {e}")
         return "I'm having a bit of trouble thinking right now. Please try again."
 
+def save_chat_message(anonymous_id: str, role: str, content: str):
+    """Save a chat message to the chat_history table."""
+    if not anonymous_id:
+        return
+    try:
+        supabase.table("chat_history").insert({
+            "anonymous_id": anonymous_id,
+            "role": role,
+            "content": content
+        }).execute()
+    except Exception as e:
+        logger.error(f"Error saving chat message: {e}")
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     data = request.json
@@ -96,12 +109,21 @@ def chat():
         return jsonify({"error": "Message is required"}), 400
 
     query = data['message']
+    anonymous_id = data.get('anonymous_id')  # Optional, sent from client
+    
+    # Save user message to chat_history
+    if anonymous_id:
+        save_chat_message(anonymous_id, "user", query)
     
     # 1. Get Context
     context = get_context(query)
     
     # 2. Generate Answer
     answer = generate_answer(query, context)
+    
+    # Save bot response to chat_history
+    if anonymous_id:
+        save_chat_message(anonymous_id, "assistant", answer)
     
     return jsonify({
         "answer": answer,
