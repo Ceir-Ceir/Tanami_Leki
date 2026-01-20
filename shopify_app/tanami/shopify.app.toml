@@ -2,7 +2,7 @@
 
 client_id = "fe0328716b9e7bb5bcaa87b76e18be14"
 name = "Tanami"
-application_url = "https://tanami-leki-1gnn.onrender.com"
+application_url = "https://tanami-leki-shopify-app.onrender.com"
 embedded = true
 
 [build]
@@ -19,11 +19,12 @@ use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
-  "https://tanami-leki-1gnn.onrender.com/auth/callback",
-  "https://tanami-leki-1gnn.onrender.com/auth/shopify/callback"
+  "https://tanami-leki-shopify-app.onrender.com/auth/callback",
+  "https://tanami-leki-shopify-app.onrender.com/auth/shopify/callback",
+  "https://tanami-leki-shopify-app.onrender.com/api/auth/callback",
 ]
 
 [app_proxy]
-url = "https://tanami-leki-1gnn.onrender.com"
+url = "https://tanami-leki-shopify-app.onrender.com"
 subpath = "leki"
 prefix = "apps"
