@@ -1,3 +1,11 @@
+"""
+LOCAL TESTING VERSION of rag_service.py
+Use this file to test and tune prompts locally without affecting production.
+
+Run with: python rag_service_local.py
+Local endpoint: http://localhost:5001
+"""
+
 import os
 import logging
 from flask import Flask, request, jsonify
@@ -14,8 +22,8 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging - DEBUG level for local testing
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Config
@@ -27,21 +35,74 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not all([SUPABASE_URL, SUPABASE_KEY, GROQ_API_KEY, OPENAI_API_KEY]):
     logger.warning("Missing one or more required environment variables: SUPABASE_URL, SUPABASE_KEY, GROQ_API_KEY, OPENAI_API_KEY")
 
-# Initialize Clients
+# Initialize Clients - handle missing env vars gracefully
+supabase = None
+groq_client = None
+openai_client = None
+
 try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    groq_client = Groq(api_key=GROQ_API_KEY)
-    openai_client = OpenAI(api_key=OPENAI_API_KEY)
+    if SUPABASE_URL and SUPABASE_KEY:
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        logger.info("Supabase client initialized.")
+    else:
+        logger.warning("Supabase not configured - context retrieval disabled.")
     
-    logger.info("RAG Service Initialized successfully.")
+    if GROQ_API_KEY:
+        groq_client = Groq(api_key=GROQ_API_KEY)
+        logger.info("Groq client initialized.")
+    else:
+        logger.warning("Groq not configured - chat completions disabled.")
+    
+    if OPENAI_API_KEY:
+        openai_client = OpenAI(api_key=OPENAI_API_KEY)
+        logger.info("OpenAI client initialized.")
+    else:
+        logger.warning("OpenAI not configured - embeddings disabled.")
+    
+    logger.info("RAG Service (LOCAL) Initialized.")
 except Exception as e:
     logger.error(f"Failed to initialize clients: {e}")
+
+# =====================================
+# PROMPT TUNING SECTION - EDIT HERE
+# =====================================
+
+# System prompt for Leki - TUNE THIS
+SYSTEM_PROMPT = """You are Leki, a friendly and expert sales assistant for Leki motorcycles.
+
+STRICT CONVERSATION RULES:
+1. INITIAL QUESTION: If the conversation history consists ONLY of you asking "Are you a first-time rider?" and the user responding "Yes", "No", or similar:
+   - USER SAYS YES: Respond exactly like this (or similar): "Welcome to the community! Leki bikes are designed to be extremely beginner-friendly. Are you looking for a bike to commute to work, or more for weekend adventures?"
+   - USER SAYS NO: Respond exactly like this (or similar): "Awesome, we love experienced riders. What do you currently ride, and what are you looking for in your next bike?"
+   - DO NOT use the knowledge base context for these specific transitions.
+
+2. TECHNICAL QUESTIONS: 
+   - Use the provided context ONLY when the user asks a specific question about specs, models, financing, or locations.
+   - If the user's message is just a simple "Yes" or "No" and doesn't match the initial qualification phase, ask them to clarify what they mean.
+
+TONE: Professional, enthusiastic about motorcycles, and concise."""
+
+# Model settings - TUNE THESE
+MODEL_NAME = "llama-3.3-70b-versatile"
+TEMPERATURE = 0.5
+MATCH_COUNT = 5  # Number of context chunks to retrieve
+
+# =====================================
+# END PROMPT TUNING SECTION
+# =====================================
 
 def get_context(query_text: str):
     """
     1. Vectorize query using OpenAI (1536 dims).
     2. Search Supabase kb_chunks.
     """
+    if not openai_client:
+        logger.warning("OpenAI client not configured - skipping context retrieval")
+        return []
+    if not supabase:
+        logger.warning("Supabase client not configured - skipping context retrieval")
+        return []
+    
     try:
         # Generate embedding
         embed_res = openai_client.embeddings.create(
@@ -54,21 +115,19 @@ def get_context(query_text: str):
         # Uses the actual function signature: filter_source_types, match_count, query_embedding
         response = supabase.rpc("match_kb_chunks", {
             "query_embedding": vector,
-            "match_count": 5,
+            "match_count": MATCH_COUNT,
             "filter_source_types": None  # No filtering, return all source types
         }).execute()
         
+        logger.debug(f"Retrieved {len(response.data or [])} context chunks")
         return response.data or []
     except Exception as e:
         logger.error(f"Error fetching context: {e}")
         return []
 
-# System prompt for Leki
-SYSTEM_PROMPT = """You are Leki, a motorcycle expert ai chatbot do not say you are a chatbot unless the user ask. Answer using ONLY the provided context. If the answer isn't there, say you don't know. If the first message reply from the user is "yes" or "no" they are responding to the question are you a first time rider, use that information to steer the conversation either to exploring why they are interested in ebikes or what they currently use based on their response. at the end of your response try to ask a related probing question that either is sales focused or demographics focused but do not make it like a survey."""
-
 def get_history(anonymous_id: str, limit: int = 5):
     """Fetch recent chat history for a user."""
-    if not anonymous_id:
+    if not supabase or not anonymous_id:
         return []
     try:
         response = supabase.table("chat_history")\
@@ -81,7 +140,7 @@ def get_history(anonymous_id: str, limit: int = 5):
         # Reverse to get chronological order
         history = response.data[::-1] if response.data else []
         
-        # If no history, inject the initial greeting context
+        # If no history, inject the initial greeting so the bot "remembers" it asked it
         if not history:
             history = [{"role": "assistant", "content": "Hey! I'm Leki, your motorcycle expert. Are you a first-time rider?"}]
             
@@ -100,28 +159,41 @@ def generate_answer(query: str, context_chunks: list, history: list = None):
         # Build messages list
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         
-        # Add history
+        # Add history if available
         if history:
             for msg in history:
                 messages.append({"role": msg['role'], "content": msg['content']})
         
-        # Add context as a system instruction to prevent confusion during sales flow
+        # Add current message
+        # We wrap the context separately to help the model distinguish between 
+        # factual context and the ongoing conversation history.
         if context_str:
             messages.append({
                 "role": "system", 
                 "content": f"INFORMATION FROM KNOWLEDGE BASE:\n{context_str}\n\nINSTRUCTION: Use the above info ONLY if relevant to the user's specific question. If they are just answering your qualification questions, stick to the sales flow."
             })
         
-        # Add current user query
         messages.append({"role": "user", "content": query})
+
+        # Log for debugging
+        logger.debug("=" * 50)
+        logger.debug("MESSAGES SENT TO GROQ:")
+        for m in messages:
+            logger.debug(f"[{m['role'].upper()}]: {m['content'][:100]}...")
+        logger.debug("=" * 50)
 
         chat_completion = groq_client.chat.completions.create(
             messages=messages,
-            model="llama-3.3-70b-versatile",
-            temperature=0.5,
+            model=MODEL_NAME,
+            temperature=TEMPERATURE,
         )
         
-        return chat_completion.choices[0].message.content
+        answer = chat_completion.choices[0].message.content
+        logger.debug("RESPONSE:")
+        logger.debug(answer)
+        logger.debug("=" * 50)
+        
+        return answer
     except Exception as e:
         logger.error(f"Error generating answer: {e}")
         return "I'm having a bit of trouble thinking right now. Please try again."
@@ -131,13 +203,23 @@ def save_chat_message(anonymous_id: str, role: str, content: str):
     if not anonymous_id:
         return
     try:
-        supabase.table("chat_history").insert({
-            "anonymous_id": anonymous_id,
-            "role": role,
-            "content": content
-        }).execute()
+        if supabase:
+            supabase.table("chat_history").insert({
+                "anonymous_id": anonymous_id,
+                "role": role,
+                "content": content
+            }).execute()
+        logger.debug(f"[SAVED] {role}: {content[:50]}...")
     except Exception as e:
         logger.error(f"Error saving chat message: {e}")
+
+@app.route('/')
+def index():
+    try:
+        with open('test_chat_ui.html', 'r') as f:
+            return f.read()
+    except Exception as e:
+        return f"Error loading UI: {e}", 500
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
@@ -148,7 +230,9 @@ def chat():
     query = data['message']
     anonymous_id = data.get('anonymous_id')  # Optional, sent from client
     
-    # Save user message to chat_history
+    logger.info(f"Received query: {query}")
+    
+    # Save user message to chat_history (disabled by default for local testing)
     if anonymous_id:
         save_chat_message(anonymous_id, "user", query)
     
@@ -165,10 +249,94 @@ def chat():
     
     return jsonify({
         "answer": answer,
-        "sources": context
+        "sources": context,
+        # Extra debug info for local testing
+        "_debug": {
+            "model": MODEL_NAME,
+            "temperature": TEMPERATURE,
+            "context_chunks": len(context),
+            "system_prompt_preview": SYSTEM_PROMPT[:100] + "..."
+        }
     })
 
-# --- Dashboard Endpoints ---
+# --- Test Endpoint for Prompt Tuning ---
+
+@app.route('/api/test-prompt', methods=['POST'])
+def test_prompt():
+    """
+    Test endpoint for trying different prompts without modifying the code.
+    Send custom system_prompt, temperature, model in the request.
+    """
+    data = request.json
+    if not data or 'message' not in data:
+        return jsonify({"error": "Message is required"}), 400
+
+    query = data['message']
+    anonymous_id = data.get('anonymous_id')
+    custom_system_prompt = data.get('system_prompt', SYSTEM_PROMPT)
+    custom_temperature = data.get('temperature', TEMPERATURE)
+    custom_model = data.get('model', MODEL_NAME)
+    
+    logger.info(f"Test prompt query: {query}")
+    
+    # Save user message to history if anon_id present
+    if anonymous_id:
+        save_chat_message(anonymous_id, "user", query)
+
+    # 1. Get History & Context
+    history = get_history(anonymous_id)
+    context = get_context(query)
+    
+    # 2. Generate Answer with custom settings
+    if not groq_client:
+        return jsonify({"error": "Groq client not configured. Set GROQ_API_KEY environment variable."}), 500
+    
+    try:
+        context_str = "\n\n".join([c.get('content', '') for c in context])
+        
+        # Build messages list
+        messages = [{"role": "system", "content": custom_system_prompt}]
+        
+        # Add history
+        if history:
+            for msg in history:
+                messages.append({"role": msg['role'], "content": msg['content']})
+        
+        if context_str:
+            messages.append({
+                "role": "system", 
+                "content": f"INFORMATION FROM KNOWLEDGE BASE:\n{context_str}\n\nINSTRUCTION: Use the above info ONLY if relevant to the user's specific question. If they are just answering your qualification questions, stick to the sales flow."
+            })
+
+        messages.append({"role": "user", "content": query})
+
+        chat_completion = groq_client.chat.completions.create(
+            messages=messages,
+            model=custom_model,
+            temperature=custom_temperature,
+        )
+        
+        answer = chat_completion.choices[0].message.content
+
+        # Save assistant message to history if anon_id present
+        if anonymous_id:
+            save_chat_message(anonymous_id, "assistant", answer)
+    except Exception as e:
+        logger.error(f"Error in test-prompt: {e}")
+        answer = f"Error: {e}"
+    
+    return jsonify({
+        "answer": answer,
+        "sources": context,
+        "settings_used": {
+            "system_prompt": custom_system_prompt,
+            "model": custom_model,
+            "temperature": custom_temperature,
+            "context_chunks": len(context)
+        }
+    })
+
+# --- Dashboard Endpoints (same as production) ---
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
@@ -264,9 +432,27 @@ def add_kb_chunk():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "mode": "local_testing"})
 
 if __name__ == '__main__':
-    # Run on port 5000 (default) or PORT env var
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    print("\n" + "=" * 60)
+    print("🧪 RAG SERVICE - LOCAL TESTING MODE")
+    print("=" * 60)
+    print(f"📍 Endpoint: http://localhost:5001")
+    print(f"🤖 Model: {MODEL_NAME}")
+    print(f"🌡️  Temperature: {TEMPERATURE}")
+    print(f"📚 Context chunks: {MATCH_COUNT}")
+    print("=" * 60)
+    print("\nTest endpoints:")
+    print("  POST /api/chat      - Standard chat (same as prod)")
+    print("  POST /api/test-prompt - Test with custom prompts")
+    print("  GET  /health        - Health check")
+    print("\nExample test-prompt request:")
+    print('''  curl -X POST http://localhost:5001/api/test-prompt \\
+    -H "Content-Type: application/json" \\
+    -d '{"message": "What bike is best for beginners?", "temperature": 0.7}'
+''')
+    print("=" * 60 + "\n")
+    
+    # Run on port 5001 for local testing (different from prod)
+    app.run(host='0.0.0.0', port=5001, debug=True)

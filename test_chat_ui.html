@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Leki Prompt Tester</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #e8e8e8;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 24px;
+            min-height: 100vh;
+        }
+
+        /* Sidebar - Prompt Settings */
+        .sidebar {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            height: fit-content;
+            position: sticky;
+            top: 24px;
+        }
+
+        .sidebar h2 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #888;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #aaa;
+            margin-bottom: 8px;
+        }
+
+        .form-group textarea,
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 14px;
+            color: #fff;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .form-group textarea:focus,
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .form-group textarea {
+            min-height: 140px;
+            resize: vertical;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .slider-container input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #6366f1;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(99, 102, 241, 0.5);
+        }
+
+        .slider-value {
+            min-width: 40px;
+            text-align: center;
+            font-weight: 600;
+            color: #6366f1;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #22c55e;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* Chat Area */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 20px 24px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chat-header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .clear-btn {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .clear-btn:hover {
+            background: rgba(239, 68, 68, 0.3);
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-height: 500px;
+            max-height: calc(100vh - 300px);
+        }
+
+        .message {
+            display: flex;
+            gap: 12px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .message.assistant .message-avatar {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        }
+
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #3b82f6, #06b6d4);
+        }
+
+        .message-content {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 14px 18px;
+            border-radius: 16px;
+            max-width: 70%;
+            line-height: 1.6;
+        }
+
+        .message.user .message-content {
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+
+        .message.assistant .message-content {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .debug-info {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            font-size: 11px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            color: #888;
+        }
+
+        .debug-info summary {
+            cursor: pointer;
+            color: #6366f1;
+            font-weight: 500;
+        }
+
+        .sources-list {
+            margin-top: 8px;
+            padding-left: 16px;
+        }
+
+        .sources-list li {
+            margin: 4px 0;
+            color: #aaa;
+        }
+
+        /* Input Area */
+        .input-area {
+            padding: 20px 24px;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 12px;
+        }
+
+        .input-wrapper input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 16px 20px;
+            color: #fff;
+            font-size: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .input-wrapper input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .send-btn {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border: none;
+            border-radius: 14px;
+            padding: 0 28px;
+            color: #fff;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .loading-dots span {
+            width: 6px;
+            height: 6px;
+            background: #fff;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite both;
+        }
+
+        .loading-dots span:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .loading-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .loading-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: static;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Sidebar - Settings -->
+        <div class="sidebar">
+            <h2>⚙️ Prompt Settings</h2>
+
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Checking connection...</span>
+            </div>
+
+            <div class="form-group">
+                <label>System Prompt</label>
+                <textarea
+                    id="systemPrompt">You are Leki, a motorcycle expert. Answer using ONLY the provided context. If the answer isn't there, say you don't know.</textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Model</label>
+                <select id="model">
+                    <option value="llama-3.3-70b-versatile" selected>Llama 3.3 70B Versatile</option>
+                    <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant</option>
+                    <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+                    <option value="gemma2-9b-it">Gemma 2 9B</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Temperature</label>
+                <div class="slider-container">
+                    <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.5">
+                    <span class="slider-value" id="tempValue">0.5</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>API Endpoint</label>
+                <input type="text" id="endpoint" value="http://localhost:5001">
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-container">
+            <div class="chat-header">
+                <h1>🏍️ Leki Prompt Tester</h1>
+                <button class="clear-btn" onclick="clearChat()">Clear Chat</button>
+            </div>
+
+            <div class="messages" id="messages">
+                <div class="message assistant">
+                    <div class="message-avatar">🏍️</div>
+                    <div class="message-content">
+                        Hey! I'm Leki, your motorcycle expert. Are you a first-time rider?
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <input type="text" id="userInput" placeholder="Ask a question to test..."
+                        onkeypress="if(event.key === 'Enter') sendMessage()">
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                        Send →
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tempSlider = document.getElementById('temperature');
+        const tempValue = document.getElementById('tempValue');
+
+        // Generate or get a session-based anonymous ID for history testing
+        let anonymousId = localStorage.getItem('leki_test_anon_id');
+        if (!anonymousId) {
+            anonymousId = 'test_' + Math.random().toString(36).substring(7);
+            localStorage.setItem('leki_test_anon_id', anonymousId);
+        }
+
+        tempSlider.addEventListener('input', () => {
+            tempValue.textContent = tempSlider.value;
+        });
+
+        // Check connection on load
+        async function checkConnection() {
+            const endpoint = document.getElementById('endpoint').value;
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+
+            try {
+                const response = await fetch(`${endpoint}/health`);
+                if (response.ok) {
+                    statusDot.classList.add('connected');
+                    statusText.textContent = 'Connected to local server';
+                } else {
+                    throw new Error('Not OK');
+                }
+            } catch (e) {
+                statusDot.classList.remove('connected');
+                statusText.textContent = 'Server not running';
+            }
+        }
+
+        setInterval(checkConnection, 5000);
+        checkConnection();
+
+        function addMessage(role, content, debugInfo = null) {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+
+            let debugHtml = '';
+            if (debugInfo) {
+                debugHtml = `
+                    <details class="debug-info">
+                        <summary>📊 Debug Info</summary>
+                        <p><strong>Model:</strong> ${debugInfo.model || 'N/A'}</p>
+                        <p><strong>Temperature:</strong> ${debugInfo.temperature || 'N/A'}</p>
+                        <p><strong>Context Chunks:</strong> ${debugInfo.context_chunks || 0}</p>
+                        ${debugInfo.sources ? `
+                            <p><strong>Sources:</strong></p>
+                            <ul class="sources-list">
+                                ${debugInfo.sources.slice(0, 3).map(s =>
+                    `<li>${(s.content || '').substring(0, 100)}...</li>`
+                ).join('')}
+                            </ul>
+                        ` : ''}
+                    </details>
+                `;
+            }
+
+            div.innerHTML = `
+                <div class="message-avatar">${role === 'user' ? '👤' : '🏍️'}</div>
+                <div class="message-content">
+                    ${content}
+                    ${debugHtml}
+                </div>
+            `;
+
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function showLoading() {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.id = 'loading-message';
+            div.innerHTML = `
+                <div class="message-avatar">🏍️</div>
+                <div class="message-content">
+                    <div class="loading-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            `;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function removeLoading() {
+            const loading = document.getElementById('loading-message');
+            if (loading) loading.remove();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const endpoint = document.getElementById('endpoint').value;
+            const systemPrompt = document.getElementById('systemPrompt').value;
+            const model = document.getElementById('model').value;
+            const temperature = parseFloat(document.getElementById('temperature').value);
+
+            // Add user message
+            addMessage('user', message);
+            input.value = '';
+
+            // Disable send button
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            showLoading();
+
+            try {
+                const response = await fetch(`${endpoint}/api/test-prompt`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        anonymous_id: anonymousId,
+                        system_prompt: systemPrompt,
+                        model: model,
+                        temperature: temperature
+                    })
+                });
+
+                const data = await response.json();
+                removeLoading();
+
+                if (data.error) {
+                    addMessage('assistant', `❌ Error: ${data.error}`);
+                } else {
+                    addMessage('assistant', data.answer, {
+                        model: data.settings_used?.model,
+                        temperature: data.settings_used?.temperature,
+                        context_chunks: data.settings_used?.context_chunks,
+                        sources: data.sources
+                    });
+                }
+            } catch (e) {
+                removeLoading();
+                addMessage('assistant', `❌ Connection error: ${e.message}. Make sure the local server is running.`);
+            }
+
+            sendBtn.disabled = false;
+        }
+
+        function clearChat() {
+            // Reset anonymous ID to start a fresh conversation branch in DB
+            anonymousId = 'test_' + Math.random().toString(36).substring(7);
+            localStorage.setItem('leki_test_anon_id', anonymousId);
+
+            const messages = document.getElementById('messages');
+            messages.innerHTML = `
+                <div class="message assistant">
+                    <div class="message-avatar">🏍️</div>
+                    <div class="message-content">
+                        Chat cleared! Session reset. Are you a first-time rider?
+                    </div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+
+</html>
