@@ -83,7 +83,7 @@ STRICT CONVERSATION RULES:
 TONE: Professional, enthusiastic about motorcycles, and concise."""
 
 # Model settings - TUNE THESE
-MODEL_NAME = "llama-3.3-70b-versatile"
+MODEL_NAME = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")  # llama-3.3-70b-versatile was retired by Groq on 2026-08-16
 TEMPERATURE = 0.5
 MATCH_COUNT = 5  # Number of context chunks to retrieve
 

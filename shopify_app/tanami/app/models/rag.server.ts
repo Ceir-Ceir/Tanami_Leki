@@ -63,7 +63,7 @@ ${context}
             { role: "system", content: systemPrompt },
             { role: "user", content: query },
         ],
-        model: "llama-3.3-70b-versatile",
+        model: process.env.GROQ_MODEL || "openai/gpt-oss-120b", // llama-3.3-70b-versatile was retired by Groq on 2026-08-16
         temperature: 0.5,
     });
 

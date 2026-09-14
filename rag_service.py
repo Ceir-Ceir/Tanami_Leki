@@ -23,6 +23,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")  # llama-3.3-70b-versatile was retired by Groq on 2026-08-16
 
 if not all([SUPABASE_URL, SUPABASE_KEY, GROQ_API_KEY, OPENAI_API_KEY]):
     logger.warning("Missing one or more required environment variables: SUPABASE_URL, SUPABASE_KEY, GROQ_API_KEY, OPENAI_API_KEY")
@@ -117,7 +118,7 @@ def generate_answer(query: str, context_chunks: list, history: list = None):
 
         chat_completion = groq_client.chat.completions.create(
             messages=messages,
-            model="llama-3.3-70b-versatile",
+            model=GROQ_MODEL,
             temperature=0.5,
         )
         
